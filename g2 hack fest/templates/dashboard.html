@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .mood-card {
+        transition: transform 0.2s;
+    }
+    .mood-card:hover {
+        transform: translateY(-5px);
+    }
+    .milestone-badge {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+    .milestone-completed {
+        background-color: #28a745;
+        color: white;
+    }
+    .milestone-pending {
+        background-color: #6c757d;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Mood Logging Section -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Log Your Mood</h4>
+            </div>
+            <div class="card-body">
+                <form id="moodForm">
+                    <div class="mb-3">
+                        <label class="form-label">How are you feeling?</label>
+                        <select class="form-select" id="mood" required>
+                            <option value="">Select mood...</option>
+                            <option value="great">Great</option>
+                            <option value="good">Good</option>
+                            <option value="okay">Okay</option>
+                            <option value="bad">Bad</option>
+                            <option value="terrible">Terrible</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Triggers (if any)</label>
+                        <textarea class="form-control" id="triggers" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cravings Level (1-10)</label>
+                        <input type="range" class="form-range" id="cravings" min="1" max="10">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Log Mood</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Coping Strategies Section -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Your Coping Strategies</h4>
+            </div>
+            <div class="card-body">
+                <div id="strategiesList">
+                    <div class="text-center">
+                        <p>Loading strategies...</p>
+                    </div>
+                </div>
+                <button class="btn btn-outline-primary w-100 mt-3" id="refreshStrategies">
+                    Refresh Strategies
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Milestones Section -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Your Milestones</h4>
+            </div>
+            <div class="card-body">
+                <div id="milestonesList">
+                    <div class="text-center">
+                        <p>Loading milestones...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Support Chat Section -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4>Support Chat</h4>
+            </div>
+            <div class="card-body">
+                <div class="chat-container" style="height: 300px; overflow-y: auto;">
+                    <div id="chatMessages" class="mb-3"></div>
+                </div>
+                <form id="chatForm" class="mt-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="messageInput" placeholder="Type your message...">
+                        <button class="btn btn-primary" type="submit">Send</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load initial data
+    loadStrategies();
+    loadMilestones();
+
+    // Mood logging form submission
+    document.getElementById('moodForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const moodData = {
+            mood: document.getElementById('mood').value,
+            triggers: document.getElementById('triggers').value,
+            cravings: document.getElementById('cravings').value
+        };
+
+        fetch('/api/log-mood', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(moodData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Mood logged successfully!');
+                loadStrategies(); // Refresh strategies based on new mood
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    });
+
+    // Refresh strategies button
+    document.getElementById('refreshStrategies').addEventListener('click', loadStrategies);
+
+    // Chat form submission
+    document.getElementById('chatForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const messageInput = document.getElementById('messageInput');
+        const message = messageInput.value.trim();
+        
+        if (message) {
+            addMessageToChat('You', message);
+            messageInput.value = '';
+            // Simulate response (in production, this would be a real chat system)
+            setTimeout(() => {
+                addMessageToChat('Support', 'Thank you for reaching out. How can I help you today?');
+            }, 1000);
+        }
+    });
+});
+
+function loadStrategies() {
+    fetch('/api/get-coping-strategies')
+        .then(response => response.json())
+        .then(data => {
+            const strategiesList = document.getElementById('strategiesList');
+            strategiesList.innerHTML = data.strategies.map(strategy => 
+                `<div class="alert alert-info">${strategy}</div>`
+            ).join('');
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+function loadMilestones() {
+    fetch('/api/get-milestones')
+        .then(response => response.json())
+        .then(data => {
+            const milestonesList = document.getElementById('milestonesList');
+            milestonesList.innerHTML = data.milestones.map(milestone => `
+                <div class="text-center mb-3">
+                    <div class="milestone-badge ${milestone.completed ? 'milestone-completed' : 'milestone-pending'}">
+                        ${milestone.points}
+                    </div>
+                    <h5 class="mt-2">${milestone.name}</h5>
+                </div>
+            `).join('');
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+function addMessageToChat(sender, message) {
+    const chatMessages = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `alert ${sender === 'You' ? 'alert-primary' : 'alert-secondary'}`;
+    messageDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+</script>
+{% endblock %} 
